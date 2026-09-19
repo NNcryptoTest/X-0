@@ -1,0 +1,13 @@
+{
+  "name": "tictactoe-telegram",
+  "version": "1.0.0",
+  "description": "Крестики-нолики для Telegram Mini App: игра против бота и против друга онлайн",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}
