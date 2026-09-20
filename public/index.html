@@ -78,23 +78,24 @@
   .mode-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 10px;
     margin-top: 8px;
   }
   .mode-card {
     background: rgba(243,239,228,0.06);
     border: 1.5px dashed rgba(243,239,228,0.35);
     border-radius: 10px;
-    padding: 18px 10px;
+    padding: 16px 8px;
     text-align: center;
     cursor: pointer;
     transition: background 0.15s ease, transform 0.1s ease;
   }
+  .mode-card.wide { grid-column: 1 / -1; }
   .mode-card:active { transform: scale(0.97); }
   .mode-card:hover { background: rgba(243,239,228,0.1); }
-  .mode-card .icon { font-size: 30px; margin-bottom: 8px; display: block; }
-  .mode-card .label { font-weight: 800; font-size: 15px; }
-  .mode-card .hint { font-size: 11.5px; color: var(--chalk-dim); margin-top: 4px; }
+  .mode-card .icon { font-size: 28px; margin-bottom: 6px; display: block; }
+  .mode-card .label { font-weight: 800; font-size: 14.5px; }
+  .mode-card .hint { font-size: 11px; color: var(--chalk-dim); margin-top: 3px; }
 
   /* --- Buttons / inputs --- */
   .btn {
@@ -147,8 +148,8 @@
     text-underline-offset: 3px;
   }
 
-  .friend-sub { display: none; margin-top: 16px; }
-  .friend-sub.active { display: block; }
+  .options-sub { display: none; margin-top: 16px; }
+  .options-sub.active { display: block; }
   .divider {
     text-align: center;
     color: var(--chalk-dim);
@@ -286,14 +287,19 @@
         <div class="label">Против бота</div>
         <div class="hint">играй один</div>
       </div>
-      <div class="mode-card" id="mode-friend">
+      <div class="mode-card" id="mode-random">
+        <span class="icon">🌐</span>
+        <div class="label">Случайный игрок</div>
+        <div class="hint">найдём тебе соперника</div>
+      </div>
+      <div class="mode-card wide" id="mode-friend">
         <span class="icon">🧑‍🤝‍🧑</span>
-        <div class="label">С другом</div>
-        <div class="hint">по коду комнаты</div>
+        <div class="label">С другом по коду</div>
+        <div class="hint">создай комнату или введи код</div>
       </div>
     </div>
 
-    <div id="bot-options" class="friend-sub">
+    <div id="bot-options" class="options-sub">
       <div class="chip-row">
         <div class="chip selected" data-level="easy">Полегче</div>
         <div class="chip" data-level="hard">Сложно</div>
@@ -301,11 +307,15 @@
       <button class="btn btn-primary" id="start-bot-game">Начать игру</button>
     </div>
 
-    <div id="friend-options" class="friend-sub">
+    <div id="friend-options" class="options-sub">
       <button class="btn btn-primary" id="create-room-btn">Создать комнату</button>
       <div class="divider">или</div>
       <input class="code-input" id="join-code-input" maxlength="4" placeholder="КОД" />
       <button class="btn btn-ghost" id="join-room-btn">Войти по коду</button>
+    </div>
+
+    <div id="random-options" class="options-sub">
+      <button class="btn btn-primary" id="start-random-btn">Найти соперника</button>
     </div>
 
     <div class="back-link hidden" id="back-to-modes">← назад к выбору режима</div>
@@ -313,10 +323,12 @@
 
   <!-- ЭКРАН 2: ожидание соперника -->
   <div class="screen" id="screen-waiting">
-    <p class="waiting-text">Код твоей комнаты:</p>
-    <div class="room-code-display" id="room-code-text">----</div>
-    <button class="btn btn-ghost" id="copy-code-btn">Скопировать код</button>
-    <p class="waiting-text" style="margin-top:18px;">Отправь код другу и жди<span class="dots"></span></p>
+    <div id="waiting-code-block">
+      <p class="waiting-text">Код твоей комнаты:</p>
+      <div class="room-code-display" id="room-code-text">----</div>
+      <button class="btn btn-ghost" id="copy-code-btn">Скопировать код</button>
+    </div>
+    <p class="waiting-text" id="waiting-main-text" style="margin-top:18px;">Отправь код другу и жди<span class="dots"></span></p>
     <div class="back-link" id="cancel-waiting">← отменить</div>
   </div>
 
@@ -344,10 +356,10 @@
   }
 
   // ---------- State ----------
-  let mode = null;            // 'bot' | 'friend'
+  let mode = null;            // 'bot' | 'friend' | 'random'
   let board = Array(9).fill(null);
   let turn = 'X';
-  let mySymbol = 'X';         // for friend mode, assigned by server
+  let mySymbol = 'X';         // for online modes, assigned by server
   let botLevel = 'easy';
   let gameOver = false;
   let socket = null;
@@ -373,6 +385,9 @@
   const backToModes = document.getElementById('back-to-modes');
   const botOptions = document.getElementById('bot-options');
   const friendOptions = document.getElementById('friend-options');
+  const randomOptions = document.getElementById('random-options');
+  const waitingCodeBlock = document.getElementById('waiting-code-block');
+  const waitingMainText = document.getElementById('waiting-main-text');
 
   function showScreen(name) {
     Object.values(screens).forEach(s => s.classList.remove('active'));
@@ -382,6 +397,7 @@
   function resetMenuSubscreens() {
     botOptions.classList.remove('active');
     friendOptions.classList.remove('active');
+    randomOptions.classList.remove('active');
     backToModes.classList.add('hidden');
     subtitle.textContent = 'выбери, с кем играешь';
   }
@@ -390,6 +406,7 @@
   document.getElementById('mode-bot').addEventListener('click', () => {
     botOptions.classList.add('active');
     friendOptions.classList.remove('active');
+    randomOptions.classList.remove('active');
     backToModes.classList.remove('hidden');
     subtitle.textContent = 'настрой игру против бота';
   });
@@ -397,8 +414,17 @@
   document.getElementById('mode-friend').addEventListener('click', () => {
     friendOptions.classList.add('active');
     botOptions.classList.remove('active');
+    randomOptions.classList.remove('active');
     backToModes.classList.remove('hidden');
     subtitle.textContent = 'создай комнату или войди по коду';
+  });
+
+  document.getElementById('mode-random').addEventListener('click', () => {
+    randomOptions.classList.add('active');
+    botOptions.classList.remove('active');
+    friendOptions.classList.remove('active');
+    backToModes.classList.remove('hidden');
+    subtitle.textContent = 'сыграй с тем, кто сейчас онлайн';
   });
 
   backToModes.addEventListener('click', resetMenuSubscreens);
@@ -421,6 +447,7 @@
     playersTag.textContent = 'ты: X · бот: O';
     renderBoard();
     updateStatus();
+    rematchBtn.classList.add('hidden');
     showScreen('game');
   });
 
@@ -480,14 +507,23 @@
     return null;
   }
 
-  // ---------- Friend mode (Socket.io) ----------
+  // ---------- Online modes (Socket.io) ----------
   function ensureSocket() {
     if (socket) return socket;
     socket = io();
 
     socket.on('room-created', ({ code }) => {
       roomCode = code;
+      waitingCodeBlock.classList.remove('hidden');
       document.getElementById('room-code-text').textContent = code;
+      waitingMainText.textContent = 'Отправь код другу и жди';
+      showScreen('waiting');
+    });
+
+    socket.on('waiting-random', () => {
+      waitingCodeBlock.classList.add('hidden');
+      waitingMainText.textContent = 'Ищем соперника';
+      waitingMainText.classList.add('dots');
       showScreen('waiting');
     });
 
@@ -495,10 +531,11 @@
       alert(msg);
     });
 
-    socket.on('game-start', ({ board: b, turn: t }) => {
-      mode = 'friend';
-      board = b;
-      turn = t;
+    socket.on('game-start', (data) => {
+      mode = mode || 'friend';
+      board = data.board;
+      turn = data.turn;
+      if (!data.keepSymbol && data.symbol) mySymbol = data.symbol;
       gameOver = false;
       playersTag.textContent = `ты: ${mySymbol}`;
       renderBoard();
@@ -530,15 +567,20 @@
   }
 
   document.getElementById('create-room-btn').addEventListener('click', () => {
-    mySymbol = 'X';
+    mode = 'friend';
     ensureSocket().emit('create-room');
   });
 
   document.getElementById('join-room-btn').addEventListener('click', () => {
     const code = document.getElementById('join-code-input').value.trim();
     if (!code) return;
-    mySymbol = 'O';
+    mode = 'friend';
     ensureSocket().emit('join-room', code);
+  });
+
+  document.getElementById('start-random-btn').addEventListener('click', () => {
+    mode = 'random';
+    ensureSocket().emit('find-random');
   });
 
   document.getElementById('copy-code-btn').addEventListener('click', () => {
@@ -552,13 +594,17 @@
   });
 
   document.getElementById('cancel-waiting').addEventListener('click', () => {
-    if (socket) socket.disconnect();
+    if (socket) {
+      socket.emit('cancel-random');
+      socket.disconnect();
+    }
     socket = null;
+    waitingMainText.classList.remove('dots');
     goToMenu();
   });
 
   rematchBtn.addEventListener('click', () => {
-    if (mode === 'friend' && socket) {
+    if ((mode === 'friend' || mode === 'random') && socket) {
       socket.emit('rematch');
     } else {
       board = Array(9).fill(null);
@@ -616,7 +662,7 @@
       if (turn !== 'X') return;
       applyMove(i, 'X');
       if (!gameOver) setTimeout(botMove, 350);
-    } else if (mode === 'friend') {
+    } else if (mode === 'friend' || mode === 'random') {
       if (turn !== mySymbol) return;
       socket.emit('make-move', i);
     }
