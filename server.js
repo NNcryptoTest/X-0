@@ -3,7 +3,17 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 
-const app = express();
+const app = express();: const fs = require("fs");
+app.get("/debug", (req, res) => {
+  res.json({
+    __dirname,
+    rootFiles: fs.readdirSync(__dirname),
+    publicExists: fs.existsSync(path.join(__dirname, "public")),
+    publicFiles: fs.existsSync(path.join(__dirname, "public"))
+      ? fs.readdirSync(path.join(__dirname, "public"))
+      : null,
+  });
+});
 const server = http.createServer(app);
 const io = new Server(server);
 
