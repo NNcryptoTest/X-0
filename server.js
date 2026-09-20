@@ -3,7 +3,8 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 
-const app = express();: const fs = require("fs");
+const app = express();:
+const fs = require("fs");
 app.get("/debug", (req, res) => {
   res.json({
     __dirname,
